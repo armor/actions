@@ -1,0 +1,243 @@
+name: Armor Auto Deploy XDR
+on:
+  workflow_call:
+    inputs:
+      TERRAFORM_VERSION:
+        type: "string"
+        description: "Terraform version"
+        required: false
+        default: "1.1.8"
+      TERRAGRUNT_VERSION:
+        type: "string"
+        description: "Terragrunt version"
+        required: false
+        default: "0.44.0"
+
+    secrets:
+      XDR_CREDENTIALS:
+        description: |
+          The credentials string should look like this '{"azure":{"demo":{"clientId":"***","clientSecret":"***"}}}'
+          .Provider.Environment.clientId
+          .Provider.Environment.clientSecret
+        required: true
+      DEPLOY_KEY:
+        description: |
+          Deploy key to access the infrastructure-modules repository (setting this up is explained here:
+          https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys#set-up-deploy-keys)
+
+          The private key (the public key is already saved as detailed above) is saved in the secrets of
+          infrastructure-live repository, and passed to the GitHub workflow with this Workflow Secret.
+        required: true
+
+jobs:
+
+  read-config:
+    name: "Read .config.json"
+    runs-on: ubuntu-latest
+    outputs:
+      xdrConfig: ${{ steps.read-config-file.outputs.CONFIG_JSON }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+      - id: read-config-file
+        shell: bash
+        run: |
+          # Read .config.json into local var
+
+          cat ./.config.json
+
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+
+          echo "CONFIG_JSON<<$EOF" >> $GITHUB_OUTPUT
+          cat ./.config.json >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+  deployment:
+    needs: read-config
+    strategy:
+      matrix: ${{ fromJSON(needs.read-config.outputs.xdrConfig).githubMatrix }}
+    name: 'Armor-XDR-Deployment'
+    runs-on: ubuntu-latest
+
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.head_ref }}
+
+    - name: Extract Env Vars from config.json
+      run: |
+        [[ ${{ matrix.environments }} =~ ([^_]*)_(.*)_([^_]*) ]]
+        echo "PROVIDER=${BASH_REMATCH[1]}" >> $GITHUB_ENV
+        echo "ENVIRONMENT=${BASH_REMATCH[2]}" >> $GITHUB_ENV
+        echo "LOCATION=${BASH_REMATCH[3]}" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Get subscription ID from environment.yaml
+      id: get-subscription-id
+      uses: jbutcher5/read-yaml@main
+      with:
+        # This should look like azure/demo/environment.yaml
+        file: "./${{ env.PROVIDER }}/${{ env.ENVIRONMENT }}/environment.yaml"
+        key-path: '["subscription_id"]'
+
+    - name: Get Tenant ID from environment.yaml
+      id: get-tenant-id
+      uses: jbutcher5/read-yaml@main
+      with:
+        # This should look like azure/demo/environment.yaml
+        file: "./${{ env.PROVIDER }}/${{ env.ENVIRONMENT }}/environment.yaml"
+        key-path: '["tenant_id"]'
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: ${{ inputs.TERRAFORM_VERSION }}
+        terraform_wrapper: false
+
+    - name: Terragrunt installer
+      uses: autero1/action-terragrunt@v1.3.0
+      with:
+        terragrunt_version: ${{ inputs.TERRAGRUNT_VERSION }}
+
+    - name: Import SSH key
+      run: .tools/import-ssh-key.sh
+      shell: bash
+      env:
+        CI_BOT_SSH_KEY: ${{ secrets.DEPLOY_KEY }}
+
+    - name: Set Azure credentials
+      if: env.PROVIDER == 'azure'
+      shell: bash
+      env:
+        XDR_CREDENTIALS: ${{ secrets.XDR_CREDENTIALS }}
+      run: |
+        ARM_CLIENT_ID=$(jq -r '.azure.${{ env.ENVIRONMENT }}.clientId' <<< "$XDR_CREDENTIALS")
+        echo "::add-mask::$ARM_CLIENT_ID"
+        ARM_CLIENT_SECRET=$(jq -r '.azure.${{ env.ENVIRONMENT }}.clientSecret' <<< "$XDR_CREDENTIALS")
+        echo "::add-mask::$ARM_CLIENT_SECRET"
+
+        echo "ARM_CLIENT_ID=$ARM_CLIENT_ID" >> $GITHUB_ENV
+        echo "ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET" >> $GITHUB_ENV
+
+    - name: Terragrunt Plan
+      id: plan
+      if: github.event_name == 'pull_request'
+      shell: bash
+      env:
+        ARM_SUBSCRIPTION_ID: ${{ steps.get-subscription-id.outputs.data }}
+        ARM_TENANT_ID: ${{ steps.get-tenant-id.outputs.data }}
+      run: |
+        set +e
+
+        .tools/${{ env.PROVIDER }}/update-environment.sh \
+          --environment ${{ env.ENVIRONMENT }} \
+          --location ${{ env.LOCATION }} \
+          --subscription ${{ steps.get-subscription-id.outputs.data }} \
+          --non-interactive \
+          --terragrunt-subcommand plan > plan.txt 2>&1
+
+        UPDATE_ENVIRONMENT_EXIT_CODE=$?
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "PLAN_OUTPUT<<$EOF" >> $GITHUB_OUTPUT
+        cat plan.txt | sed 's/\x1B\[[0-9;]\+[A-Za-z]//g' >> $GITHUB_OUTPUT
+        echo "$EOF" >> $GITHUB_OUTPUT
+        if [[ $UPDATE_ENVIRONMENT_EXIT_CODE -ne 0 ]]; then exit 1; fi
+      continue-on-error: true
+
+    - name: Update Pull Request
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      env:
+        PLAN: "Plan Output\n${{ steps.plan.outputs.PLAN_OUTPUT }}"
+      with:
+        script: |
+          const output = `#### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+          <details><summary>Show Plan</summary>
+
+          \`\`\`\n
+          ${process.env.PLAN}
+          \`\`\`
+
+          </details>
+
+          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+          if (process.env.PLAN.length > 65536) {
+            const first_comment = `#### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN.slice(0, 65536)}
+            \`\`\`
+
+            </details>
+
+            > **Note**
+            > Plan output exceeds character limit, continuing in next comment
+            `;
+
+            const second_comment = `#### Plan output continued from previous comment
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN.slice(65536)}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            const firstComment = await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: first_comment
+            });
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: second_comment,
+              in_reply_to: firstComment.data.id
+            });
+          } else {
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+          }
+
+    - name: Terragrunt Plan Status
+      if: steps.plan.outcome == 'failure'
+      shell: bash
+      run: exit 1
+
+    - name: Terragrunt Apply
+      if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+      shell: bash
+      env:
+        ARM_SUBSCRIPTION_ID: ${{ steps.get-subscription-id.outputs.data }}
+        ARM_TENANT_ID: ${{ steps.get-tenant-id.outputs.data }}
+      run: |
+        .tools/azure/update-environment.sh \
+          --environment ${{ env.ENVIRONMENT }} \
+          --location ${{ env.LOCATION }} \
+          --subscription ${{ steps.get-subscription-id.outputs.data }} \
+          --non-interactive true

@@ -1,0 +1,22 @@
+# Terraform
+.terraform
+.terragrunt-cache
+*.tfstate
+*.tfstate.backup
+
+# OS X
+.history
+.DS_Store
+
+# IntelliJ
+.idea_modules
+*.iml
+*.iws
+*.ipr
+.idea/
+build/
+*/build/
+out/
+
+# TLS – these should all be stored in terraform state or secrets.yaml files
+*.pem
