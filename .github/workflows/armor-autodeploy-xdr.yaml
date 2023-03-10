@@ -230,7 +230,7 @@ jobs:
       run: exit 1
 
     - name: Terragrunt Apply
-      if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+      if: contains(fromJSON('["refs/heads/master", "refs/heads/main"]'), github.ref) && github.event_name == 'push'
       shell: bash
       env:
         ARM_SUBSCRIPTION_ID: ${{ steps.get-subscription-id.outputs.data }}
