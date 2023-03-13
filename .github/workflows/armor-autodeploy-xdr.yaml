@@ -82,7 +82,7 @@ jobs:
 
     - name: Get subscription ID from environment.yaml
       id: get-subscription-id
-      uses: jbutcher5/read-yaml@30d0dcb
+      uses: jbutcher5/read-yaml@30d0dcbace934eb23f69578ebcad1a4cc1ffea61
       with:
         # This should look like azure/demo/environment.yaml
         file: "./${{ env.PROVIDER }}/${{ env.ENVIRONMENT }}/environment.yaml"
@@ -90,7 +90,7 @@ jobs:
 
     - name: Get Tenant ID from environment.yaml
       id: get-tenant-id
-      uses: jbutcher5/read-yaml@30d0dcb
+      uses: jbutcher5/read-yaml@30d0dcbace934eb23f69578ebcad1a4cc1ffea61
       with:
         # This should look like azure/demo/environment.yaml
         file: "./${{ env.PROVIDER }}/${{ env.ENVIRONMENT }}/environment.yaml"
@@ -103,7 +103,7 @@ jobs:
         terraform_wrapper: false
 
     - name: Terragrunt installer
-      uses: autero1/action-terragrunt@c358c8e
+      uses: autero1/action-terragrunt@706ac4008b7f9a456b585b8c61ad41f4f8d22f41
       with:
         terragrunt_version: ${{ inputs.TERRAGRUNT_VERSION }}
 
