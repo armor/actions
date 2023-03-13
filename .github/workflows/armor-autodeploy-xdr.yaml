@@ -16,7 +16,8 @@ on:
     secrets:
       XDR_CREDENTIALS:
         description: |
-          The credentials string should look like this '{"azure":{"demo":{"clientId":"***","clientSecret":"***"}}}'
+          The credentials string should look like this '{"azure":{"demo":{"location": "southeastasia", "clientId":"***","clientSecret":"***"}}}'
+          .Provider.Environment.location
           .Provider.Environment.clientId
           .Provider.Environment.clientSecret
         required: true
@@ -31,34 +32,30 @@ on:
 
 jobs:
 
-  read-config:
+  extract-environments:
     name: "Read .config.json"
     runs-on: ubuntu-latest
     outputs:
-      xdrConfig: ${{ steps.read-config-file.outputs.CONFIG_JSON }}
+      allEnvironments: ${{ steps.read-config.outputs.ALL_ENVIRONMENTS }}
+    env:
+      XDR_CREDENTIALS: ${{ secrets.XDR_CREDENTIALS }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.head_ref }}
-      - id: read-config-file
+      - name: Create matrix strategy from the XDR_CREDENTIALS string
+        id: read-config
         shell: bash
         run: |
-          # Read .config.json into local var
+          all_environments=$(echo "$XDR_CREDENTIALS"| jq 'keys[] as $provider
+                  | .[$provider] | keys[] as $env | "\($provider)_\($env)_\(.[$env].location)"' | jq -s -c '.')
 
-          cat ./.config.json
-
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-
-          echo "CONFIG_JSON<<$EOF" >> $GITHUB_OUTPUT
-          cat ./.config.json >> $GITHUB_OUTPUT
-          echo "$EOF" >> $GITHUB_OUTPUT
+          echo bb $all_environments bb
+          echo "ALL_ENVIRONMENTS=$all_environments" >> $GITHUB_OUTPUT
 
   deployment:
-    needs: read-config
+    needs: extract-environments
     strategy:
-      matrix: ${{ fromJSON(needs.read-config.outputs.xdrConfig).githubMatrix }}
+      matrix:
+        environments: ${{ fromJSON(needs.extract-environments.outputs.allEnvironments) }}
     name: 'Armor-XDR-Deployment'
     runs-on: ubuntu-latest
 

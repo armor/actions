@@ -68,6 +68,7 @@ jobs:
       XDR_CREDENTIALS: '{
         "azure": {
             "demo": {
+              "location": "southeastasia",
               "clientId": "${{ secrets.AZURE_DEMO_CLIENTID}}",
               "clientSecret": "${{ secrets.AZURE_DEMO_CLIENTSECRET }}"
             }
@@ -80,6 +81,7 @@ jobs:
 - `"azure"` is the provider name. We currently only support `"azure"`.
 - `"demo"` should be replaced by the environment name. This is the same as the directory name under `azure` of Armor's
   `infrastructure-live`.
+- `southeastasia` should be replaced by the location / region of the subscription (for Azure)
 - `AZURE_DEMO_CLIENTID` and `AZURE_DEMO_CLIENTSECRET` should be replaced by the secret name of the credentials.
 
 If the XDR infrastructure has more than 1 environment, say "staging" and "production", then the `XDR_CREDENTIALS` string
