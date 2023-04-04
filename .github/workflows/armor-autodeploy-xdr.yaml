@@ -142,7 +142,8 @@ jobs:
           --location ${{ env.LOCATION }} \
           --subscription ${{ steps.get-subscription-id.outputs.data }} \
           --non-interactive \
-          --terragrunt-subcommand plan > plan.txt 2>&1
+          --terragrunt-subcommand plan > plan.txt 2>&1 \
+          --authsp true
 
         UPDATE_ENVIRONMENT_EXIT_CODE=$?
         EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
@@ -237,4 +238,5 @@ jobs:
           --environment ${{ env.ENVIRONMENT }} \
           --location ${{ env.LOCATION }} \
           --subscription ${{ steps.get-subscription-id.outputs.data }} \
-          --non-interactive true
+          --non-interactive true \
+          --authsp true
