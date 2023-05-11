@@ -22,7 +22,7 @@ This GitHub Deploy Key is necessary to pull in the `infrastructure-modules` repo
 https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys#set-up-deploy-keys)
 details how to do it. We list a summary here:
 
-1. Create SSH key pair
+1. Create SSH key pair (leave the passphrase empty)
 2. Upload public key to the `infrastructure-modules` Deploy Keys page on GitHub
 3. The private key will be used in the subsequent steps
 
