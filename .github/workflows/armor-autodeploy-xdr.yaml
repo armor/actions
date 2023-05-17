@@ -72,6 +72,13 @@ jobs:
       with:
         ref: ${{ github.head_ref }}
 
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        repository: cncsc/actions
+        path: cncsc-actions
+        ref: c4d75151baff950b5d5c608487b8a940c3ebf255
+
     - name: Extract Env Vars from config.json
       run: |
         [[ ${{ matrix.environments }} =~ ([^_]*)_(.*)_([^_]*) ]]
@@ -108,7 +115,7 @@ jobs:
         terragrunt_version: ${{ inputs.TERRAGRUNT_VERSION }}
 
     - name: Import SSH key
-      run: .tools/import-ssh-key.sh
+      run: cncsc-actions/scripts/utilities/import-ssh-key.sh
       shell: bash
       env:
         CI_BOT_SSH_KEY: ${{ secrets.DEPLOY_KEY }}
