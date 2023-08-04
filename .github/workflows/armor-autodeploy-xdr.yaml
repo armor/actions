@@ -160,6 +160,18 @@ jobs:
         if [[ $UPDATE_ENVIRONMENT_EXIT_CODE -ne 0 ]]; then exit 1; fi
       continue-on-error: true
 
+    - name: Commit Changes
+      if: github.event_name == 'pull_request'
+      run: |
+          set -e
+          git config --global user.email "ci@armor.com"
+          git config --global user.name "Armor CI Bot"
+          git add azure/
+          git commit -m "Update Environment"
+          git push
+      env:
+        GH_TOKEN: ${{ github.token }}
+
     - name: Update Pull Request
       uses: actions/github-script@v6
       if: github.event_name == 'pull_request'
