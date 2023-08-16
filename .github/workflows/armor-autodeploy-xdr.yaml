@@ -166,9 +166,15 @@ jobs:
           set -e
           git config --global user.email "ci@armor.com"
           git config --global user.name "Armor CI Bot"
-          git add azure/
-          git commit -m "Update Environment"
-          git push
+
+          commit_path='azure/'
+
+          git status | grep ' *${commit_path}'
+          if [ "$?" -eq 0 ]; then
+            git add "$commit_path"
+            git commit -m "Update Environment"
+            git push
+          fi
       env:
         GH_TOKEN: ${{ github.token }}
 
