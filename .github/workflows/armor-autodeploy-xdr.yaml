@@ -169,7 +169,7 @@ jobs:
 
           commit_path='azure/'
 
-          git status | grep ' *${commit_path}'
+          git status | grep " *${commit_path}"
           if [ "$?" -eq 0 ]; then
             git add "$commit_path"
             git commit -m "Update Environment"
