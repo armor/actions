@@ -168,6 +168,7 @@ jobs:
 
           commit_path='azure/'
 
+          set +e
           git status | grep " *${commit_path}"
           if [ "$?" -eq 0 ]; then
             set -e
