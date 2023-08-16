@@ -163,7 +163,6 @@ jobs:
     - name: Commit Changes
       if: github.event_name == 'pull_request'
       run: |
-          set -e
           git config --global user.email "ci@armor.com"
           git config --global user.name "Armor CI Bot"
 
@@ -171,6 +170,8 @@ jobs:
 
           git status | grep " *${commit_path}"
           if [ "$?" -eq 0 ]; then
+            set -e
+
             git add "$commit_path"
             git commit -m "Update Environment"
             git push
