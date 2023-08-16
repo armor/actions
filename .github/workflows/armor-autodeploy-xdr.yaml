@@ -6,7 +6,7 @@ on:
         type: "string"
         description: "Terraform version"
         required: false
-        default: "1.1.8"
+        default: "1.2.5"
       TERRAGRUNT_VERSION:
         type: "string"
         description: "Terragrunt version"
