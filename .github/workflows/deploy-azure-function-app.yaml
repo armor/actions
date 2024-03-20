@@ -19,11 +19,6 @@ on:
         type: "string"
         description: "Node Version."
         required: true
-        default: "16.11.7"
-      FUNCTION_PATH:
-        type: "string"
-        description: "Function App package path."
-        required: true
       CLIENT_ID:
         type: "string"
         description: "Service Principal Client ID."
@@ -87,5 +82,4 @@ jobs:
         id: fa
         with:
           app-name: ${{ inputs.FUNCTION_NAME }}
-          package: ${{ inputs.FUNCTION_PATH }}
           respect-funcignore: true
