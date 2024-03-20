@@ -1,0 +1,91 @@
+name: Deploy function apps to Azure
+
+on:
+  workflow_call:
+    inputs:
+      TENANT_ID:
+        type: "string"
+        description: "Azure Tenant that the subscription belongs to."
+        required: true
+      SUBSCRIPTION_ID:
+        type: "string"
+        description: "Subscription to deploy the Function app to."
+        required: true
+      FUNCTION_NAME:
+        type: "string"
+        description: "Name of the function app."
+        required: true
+      NODE_VERSION:
+        type: "string"
+        description: "Node Version."
+        required: true
+        default: "16.11.7"
+      FUNCTION_PATH:
+        type: "string"
+        description: "Function App package path."
+        required: true
+      CLIENT_ID:
+        type: "string"
+        description: "Service Principal Client ID."
+        required: true
+    secrets:
+      CLIENT_SECRET:
+        description: "Service Principal Client Secret."
+        required: true
+      APP_SETTINGS:
+        description: "Application settings for the function app as a JSON string."
+        required: true
+
+jobs:
+  deployment:
+    name: Deploy function app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set Node.js 16.11 for GitHub Action
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ inputs.NODE_VERSION }}
+
+      - name: Run Npm Install for GitHub Action
+        run: npm install
+
+      - name: Build GitHub Action
+        run: npm run build
+
+      - name: Setup Node ${{ inputs.NODE_VERSION }} Environment
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ inputs.NODE_VERSION }}
+
+      - name: Resolve Project Dependencies Using Npm
+        shell: bash
+        run: |
+          pushd '${{ inputs.FUNCTION_PATH }}'
+          npm install
+          npm run build --if-present
+          npm ci --production --if-present
+          npm run test --if-present
+          popd
+
+      - name: Login via Azure CLI
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ inputs.CLIENT_ID }}","clientSecret":"${{ secrets.CLIENT_SECRET }}","subscriptionId":"${{ inputs.SUBSCRIPTION_ID }}","tenantId":"${{ inputs.TENANT_ID }}"}'
+
+      - name: Configure Application settings
+        uses: azure/appservice-settings@v1
+        id: settings
+        with:
+          app-name: ${{ inputs.FUNCTION_NAME }}
+          app-settings-json: '${{ secrets.APP_SETTINGS }}'
+
+      - name: Deploy Azure Functions App
+        uses: Azure/functions-action@v1
+        id: fa
+        with:
+          app-name: ${{ inputs.FUNCTION_NAME }}
+          package: ${{ inputs.FUNCTION_PATH }}
+          respect-funcignore: true
